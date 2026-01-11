@@ -2,6 +2,8 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using StudentManagementSystem.Services;
+using StudentManagementSystem.Helpers;
+using StudentManagementSystem.Forms.Controls;
 
 namespace StudentManagementSystem.Forms
 {
@@ -11,135 +13,212 @@ namespace StudentManagementSystem.Forms
     public partial class LoginForm : Form
     {
         private readonly AuthenticationService _authService;
-        private TextBox txtUsername;
-        private TextBox txtPassword;
-        private Button btnLogin;
-        private Button btnRegister;
+        private ModernButton btnLogin;
+        private ModernButton btnRegister;
         private Label lblTitle;
         private Label lblUsername;
         private Label lblPassword;
         private Label lblComplexity;
         private Panel panelMain;
+        private Panel pnlUsername;
+        private Panel pnlPassword;
+        private TextBox txtUsername;
+        private TextBox txtPassword;
+        
+        // Custom Title Bar parts
+        private Panel pnlTitleBar;
+        private Button btnClose;
+        private Button btnMinimize;
+        
+        // Dragging
+        private bool dragging = false;
+        private Point dragCursorPoint;
+        private Point dragFormPoint;
 
         public LoginForm(AuthenticationService authService)
         {
             _authService = authService;
             InitializeComponents();
+            ApplyModernEvents();
         }
 
         private void InitializeComponents()
         {
             // Form settings
             this.Text = "Student Management System - Login";
-            this.Size = new Size(500, 400);
+            this.Size = new Size(950, 600); // Larger, more modern size
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.BackColor = Color.FromArgb(240, 240, 240);
+            this.FormBorderStyle = FormBorderStyle.None; // Remove default border
+            this.BackColor = ModernTheme.BackColor;
+            this.Icon = null; 
 
-            // Main Panel
+            // Custom Title Bar
+            pnlTitleBar = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 30,
+                BackColor = Color.Transparent 
+            };
+            pnlTitleBar.MouseDown += TitleBar_MouseDown;
+            pnlTitleBar.MouseMove += TitleBar_MouseMove;
+            pnlTitleBar.MouseUp += TitleBar_MouseUp;
+
+            btnClose = new Button
+            {
+                Text = "✕",
+                Dock = DockStyle.Right,
+                Width = 40,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = ModernTheme.TextColor,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+            btnClose.FlatAppearance.BorderSize = 0;
+            btnClose.FlatAppearance.MouseOverBackColor = ModernTheme.ErrorColor;
+            btnClose.Click += (s, e) => Application.Exit();
+
+            btnMinimize = new Button
+            {
+                Text = "—",
+                Dock = DockStyle.Right,
+                Width = 40,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = ModernTheme.TextColor,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+            btnMinimize.FlatAppearance.BorderSize = 0;
+            btnMinimize.FlatAppearance.MouseOverBackColor = ModernTheme.SurfaceColor;
+            btnMinimize.Click += (s, e) => this.WindowState = FormWindowState.Minimized;
+
+            pnlTitleBar.Controls.Add(btnMinimize);
+            pnlTitleBar.Controls.Add(btnClose);
+            this.Controls.Add(pnlTitleBar);
+
+            // Main Panel (Center Card)
             panelMain = new Panel
             {
-                Location = new Point(50, 30),
-                Size = new Size(400, 320),
-                BackColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                Size = new Size(400, 480),
+                BackColor = ModernTheme.SurfaceColor,
+                Location = new Point((this.Width - 400) / 2, (this.Height - 480) / 2)
             };
 
             // Title Label
             lblTitle = new Label
             {
                 Text = "Student Management System",
-                Location = new Point(50, 20),
-                Size = new Size(300, 30),
-                Font = new Font("Segoe UI", 14, FontStyle.Bold),
-                ForeColor = Color.FromArgb(41, 128, 185),
+                Location = new Point(0, 40),
+                Size = new Size(400, 40),
+                Font = ModernTheme.HeaderFont,
+                ForeColor = ModernTheme.PrimaryColor,
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
             // Subtitle
             lblComplexity = new Label
             {
-                Text = "Please login to continue",
-                Location = new Point(50, 55),
-                Size = new Size(300, 20),
-                Font = new Font("Segoe UI", 9, FontStyle.Italic),
-                ForeColor = Color.FromArgb(127, 140, 141),
+                Text = "Sign in to continue",
+                Location = new Point(0, 80),
+                Size = new Size(400, 20),
+                Font = ModernTheme.BodyFont,
+                ForeColor = ModernTheme.SubTextColor,
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            // Username Label
+            // Username Section
             lblUsername = new Label
             {
-                Text = "Username:",
-                Location = new Point(50, 100),
-                Size = new Size(100, 20),
-                Font = new Font("Segoe UI", 10)
+                Text = "USERNAME",
+                Location = new Point(50, 130),
+                Size = new Size(300, 20),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = ModernTheme.SubTextColor
             };
 
-            // Username TextBox
+            pnlUsername = new Panel
+            {
+                Location = new Point(50, 155),
+                Size = new Size(300, 40),
+                BackColor = ModernTheme.InputBackColor
+            };
+            
             txtUsername = new TextBox
             {
-                Location = new Point(50, 125),
-                Size = new Size(300, 30),
-                Font = new Font("Segoe UI", 11)
+                Location = new Point(10, 10),
+                Size = new Size(280, 20), 
+                Font = ModernTheme.BodyFont,
+                BackColor = ModernTheme.InputBackColor,
+                ForeColor = ModernTheme.InputForeColor,
+                BorderStyle = BorderStyle.None
             };
+            pnlUsername.Controls.Add(txtUsername);
 
-            // Password Label
+            // Password Section
             lblPassword = new Label
             {
-                Text = "Password:",
-                Location = new Point(50, 165),
-                Size = new Size(100, 20),
-                Font = new Font("Segoe UI", 10)
+                Text = "PASSWORD",
+                Location = new Point(50, 210),
+                Size = new Size(300, 20),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = ModernTheme.SubTextColor
             };
 
-            // Password TextBox
+            pnlPassword = new Panel
+            {
+                Location = new Point(50, 235),
+                Size = new Size(300, 40),
+                BackColor = ModernTheme.InputBackColor
+            };
+
             txtPassword = new TextBox
             {
-                Location = new Point(50, 190),
-                Size = new Size(300, 30),
-                Font = new Font("Segoe UI", 11),
+                Location = new Point(10, 10),
+                Size = new Size(280, 20),
+                Font = ModernTheme.BodyFont,
+                BackColor = ModernTheme.InputBackColor,
+                ForeColor = ModernTheme.InputForeColor,
+                BorderStyle = BorderStyle.None,
                 PasswordChar = '●'
             };
+            pnlPassword.Controls.Add(txtPassword);
 
             // Login Button
-            btnLogin = new Button
+            btnLogin = new ModernButton
             {
-                Text = "Login",
-                Location = new Point(50, 240),
-                Size = new Size(145, 40),
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                BackColor = Color.FromArgb(52, 152, 219),
+                Text = "LOGIN",
+                Location = new Point(50, 310),
+                Size = new Size(300, 45),
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                BackColor = ModernTheme.PrimaryColor,
                 ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
+                BorderRadius = 20,
                 Cursor = Cursors.Hand
             };
-            btnLogin.FlatAppearance.BorderSize = 0;
             btnLogin.Click += BtnLogin_Click;
 
             // Register Button
-            btnRegister = new Button
+            btnRegister = new ModernButton
             {
-                Text = "Register New Admin",
-                Location = new Point(205, 240),
-                Size = new Size(145, 40),
-                Font = new Font("Segoe UI", 10),
-                BackColor = Color.FromArgb(46, 204, 113),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
+                Text = "Create Account",
+                Location = new Point(50, 370),
+                Size = new Size(300, 45),
+                Font = new Font("Segoe UI", 10, FontStyle.Regular),
+                BackColor = ModernTheme.SurfaceColor,
+                ForeColor = ModernTheme.SubTextColor,
+                BorderRadius = 20,
                 Cursor = Cursors.Hand
             };
-            btnRegister.FlatAppearance.BorderSize = 0;
+            btnRegister.MouseEnter += (s, e) => btnRegister.ForeColor = ModernTheme.PrimaryColor;
+            btnRegister.MouseLeave += (s, e) => btnRegister.ForeColor = ModernTheme.SubTextColor;
             btnRegister.Click += BtnRegister_Click;
 
             // Add controls to panel
             panelMain.Controls.Add(lblTitle);
             panelMain.Controls.Add(lblComplexity);
             panelMain.Controls.Add(lblUsername);
-            panelMain.Controls.Add(txtUsername);
+            panelMain.Controls.Add(pnlUsername);
             panelMain.Controls.Add(lblPassword);
-            panelMain.Controls.Add(txtPassword);
+            panelMain.Controls.Add(pnlPassword);
             panelMain.Controls.Add(btnLogin);
             panelMain.Controls.Add(btnRegister);
 
@@ -148,6 +227,49 @@ namespace StudentManagementSystem.Forms
 
             // Set Enter key to login
             this.AcceptButton = btnLogin;
+        }
+
+        private void ApplyModernEvents()
+        {
+            // Hover effects for inputs
+            pnlUsername.Paint += (s, e) => DrawBorder(e.Graphics, pnlUsername.ClientRectangle, txtUsername.Focused ? ModernTheme.PrimaryColor : Color.Transparent);
+            txtUsername.Enter += (s, e) => pnlUsername.Invalidate();
+            txtUsername.Leave += (s, e) => pnlUsername.Invalidate();
+
+            pnlPassword.Paint += (s, e) => DrawBorder(e.Graphics, pnlPassword.ClientRectangle, txtPassword.Focused ? ModernTheme.PrimaryColor : Color.Transparent);
+            txtPassword.Enter += (s, e) => pnlPassword.Invalidate();
+            txtPassword.Leave += (s, e) => pnlPassword.Invalidate();
+        }
+
+        private void DrawBorder(Graphics g, Rectangle rect, Color color)
+        {
+            if (color == Color.Transparent) return;
+            using (Pen pen = new Pen(color, 2))
+            {
+                g.DrawRectangle(pen, 0, 0, rect.Width - 1, rect.Height - 1);
+            }
+        }
+
+        // Draggable Form Logic
+        private void TitleBar_MouseDown(object sender, MouseEventArgs e)
+        {
+            dragging = true;
+            dragCursorPoint = Cursor.Position;
+            dragFormPoint = this.Location;
+        }
+
+        private void TitleBar_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (dragging)
+            {
+                Point dif = Point.Subtract(Cursor.Position, new Size(dragCursorPoint));
+                this.Location = Point.Add(dragFormPoint, new Size(dif));
+            }
+        }
+
+        private void TitleBar_MouseUp(object sender, MouseEventArgs e)
+        {
+            dragging = false;
         }
 
         /// <summary>
@@ -204,7 +326,7 @@ namespace StudentManagementSystem.Forms
                     MessageBoxIcon.Error);
 
                 btnLogin.Enabled = true;
-                btnLogin.Text = "Login";
+                btnLogin.Text = "LOGIN";
                 txtPassword.Clear();
                 txtPassword.Focus();
             }

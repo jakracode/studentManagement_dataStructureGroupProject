@@ -5,9 +5,22 @@ namespace StudentManagementSystem.Data
 {
     public class ApplicationDbContext : DbContext
     {
+        public ApplicationDbContext()
+        {
+        }
+
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
         {
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                // Default connection string for local development
+                optionsBuilder.UseSqlServer("Server=.\\SQLEXPRESS;Database=CleanStudentDB;Trusted_Connection=True;TrustServerCertificate=True;");
+            }
         }
 
         public DbSet<SystemAdmin> SystemAdmins { get; set; }
@@ -39,7 +52,7 @@ namespace StudentManagementSystem.Data
                 entity.Property(e => e.StudentName).IsRequired().HasMaxLength(100);
                 entity.Property(e => e.Gender).HasMaxLength(10);
                 entity.Property(e => e.Phone).HasMaxLength(20);
-                entity.Property(e => e.Email).HasMaxLength(100);
+                entity.Property(e => e.Course).HasMaxLength(100);
             });
 
             // Teacher configuration

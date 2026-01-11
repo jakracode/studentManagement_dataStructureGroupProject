@@ -4,423 +4,570 @@ using System.Windows.Forms;
 using System.Collections.Generic;
 using StudentManagementSystem.Models;
 using StudentManagementSystem.Services;
+using StudentManagementSystem.Helpers;
+using StudentManagementSystem.Forms.Controls;
 
 namespace StudentManagementSystem.Forms
 {
-    /// <summary>
-    /// Student Management Form - Demonstrates O(1) CRUD operations using Hash Table
-    /// KEY FOR EXAM: This form shows practical application of hash tables!
-    /// </summary>
     public partial class StudentManagementForm : Form
     {
         private readonly StudentManager _studentManager;
+        
+        // Layout Panels
+        private Panel pnlLeft;  // List/Search
+        private Panel pnlRight; // Details/Edit
+        
+        // Left Side Controls
+        private TextBox txtSearch;
+        private ComboBox cmbFilterGender;
         private DataGridView dgvStudents;
+        private Label lblCount;
+        private ProgressBar loadingBar;
+        
+        // Right Side Controls
+        private Label lblRightTitle;
         private TextBox txtStudentID;
         private TextBox txtStudentName;
-        private TextBox txtPhone;
-        private TextBox txtEmail;
         private ComboBox cmbGender;
         private DateTimePicker dtpBirthDate;
-        private Button btnAdd;
-        private Button btnUpdate;
-        private Button btnDelete;
-        private Button btnFind;
-        private Button btnLoadAll;
-        private Button btnClear;
-        private Button btnPerformance;
-        private Label lblComplexity;
-        private Label lblStatus;
+        private TextBox txtPhone;
+        private TextBox txtCourse;
+        
+        // Buttons
+        private ModernButton btnSave; // Acts as Add or Update
+        private ModernButton btnDelete;
+        private ModernButton btnClear;
+
+        // Custom Title Bar
+        private Panel pnlTitleBar;
+        private bool dragging = false;
+        private Point dragCursorPoint;
+        private Point dragFormPoint;
 
         public StudentManagementForm()
         {
             _studentManager = new StudentManager();
             InitializeComponents();
-            LoadSampleData(); // Load sample students into hash table
+            
+            // Load real data from SQL Database
+            try {
+                _studentManager.LoadFromDatabase();
+            } catch (Exception ex) {
+                MessageBox.Show("Failed to load database: " + ex.Message);
+            }
+            
+            SetupEvents();
         }
 
         private void InitializeComponents()
         {
-            // Form settings
+            // Form Setup
             this.Text = "Student Management";
-            this.Size = new Size(1200, 700);
+            this.Size = new Size(1300, 800);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.FromArgb(236, 240, 241);
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.BackColor = ModernTheme.BackColor;
 
-            // Title Label
-            var lblTitle = new Label
+            // --- Title Bar ---
+            SetupTitleBar();
+
+            // --- Split Layout ---
+            pnlLeft = new Panel
             {
-                Text = "Student Management",
+                Location = new Point(20, 50),
+                Size = new Size(500, 730),
+                BackColor = ModernTheme.SurfaceColor,
+            };
+
+            pnlRight = new Panel
+            {
+                Location = new Point(540, 50),
+                Size = new Size(740, 730),
+                BackColor = ModernTheme.SurfaceColor,
+            };
+
+            // --- Left Panel Content (Search & List) ---
+            var lblSearch = new Label
+            {
+                Text = "Student Directory",
                 Location = new Point(20, 20),
-                Size = new Size(1150, 35),
-                Font = new Font("Segoe UI", 16, FontStyle.Bold),
-                ForeColor = Color.FromArgb(41, 128, 185),
-                TextAlign = ContentAlignment.MiddleCenter
+                Size = new Size(300, 30),
+                Font = ModernTheme.HeaderFont,
+                ForeColor = ModernTheme.PrimaryColor
             };
 
-            // Subtitle
-            lblComplexity = new Label
+            // Search Box
+            var pnlSearchBox = new Panel { Location = new Point(20, 60), Size = new Size(300, 35), BackColor = ModernTheme.InputBackColor };
+            txtSearch = new TextBox
             {
-                Text = "Add, Update, Delete, and Search Student Records",
-                Location = new Point(20, 60),
-                Size = new Size(1150, 25),
+                Location = new Point(10, 8),
+                Size = new Size(280, 20),
                 Font = new Font("Segoe UI", 10),
-                ForeColor = Color.FromArgb(127, 140, 141),
-                TextAlign = ContentAlignment.MiddleCenter
+                BackColor = ModernTheme.InputBackColor,
+                ForeColor = ModernTheme.InputForeColor,
+                BorderStyle = BorderStyle.None,
+                PlaceholderText = "Search by Name or ID..."
             };
+            pnlSearchBox.Controls.Add(txtSearch);
 
-            // Input Panel
-            var panelInput = new Panel
+            // Filter
+            cmbFilterGender = new ComboBox
             {
-                Location = new Point(20, 100),
-                Size = new Size(1150, 180),
-                BackColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                Location = new Point(330, 60),
+                Size = new Size(150, 35),
+                Font = new Font("Segoe UI", 11),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = ModernTheme.InputBackColor,
+                ForeColor = ModernTheme.InputForeColor,
+                FlatStyle = FlatStyle.Flat
             };
+            cmbFilterGender.Items.AddRange(new object[] { "All Genders", "Male", "Female", "Other" });
+            cmbFilterGender.SelectedIndex = 0;
 
-            // Student ID
-            var lblID = new Label { Text = "Student ID:", Location = new Point(20, 20), Size = new Size(100, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-            txtStudentID = new TextBox { Location = new Point(20, 45), Size = new Size(150, 25), Font = new Font("Segoe UI", 10) };
-
-            // Student Name
-            var lblName = new Label { Text = "Student Name:", Location = new Point(190, 20), Size = new Size(100, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-            txtStudentName = new TextBox { Location = new Point(190, 45), Size = new Size(250, 25), Font = new Font("Segoe UI", 10) };
-
-            // Gender
-            var lblGender = new Label { Text = "Gender:", Location = new Point(460, 20), Size = new Size(100, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-            cmbGender = new ComboBox { Location = new Point(460, 45), Size = new Size(120, 25), Font = new Font("Segoe UI", 10), DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbGender.Items.AddRange(new object[] { "Male", "Female", "Other" });
-
-            // Date of Birth
-            var lblDOB = new Label { Text = "Date of Birth:", Location = new Point(600, 20), Size = new Size(100, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-            dtpBirthDate = new DateTimePicker { Location = new Point(600, 45), Size = new Size(200, 25), Font = new Font("Segoe UI", 10) };
-
-            // Phone
-            var lblPhone = new Label { Text = "Phone:", Location = new Point(20, 85), Size = new Size(100, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-            txtPhone = new TextBox { Location = new Point(20, 110), Size = new Size(200, 25), Font = new Font("Segoe UI", 10) };
-
-            // Email
-            var lblEmail = new Label { Text = "Email:", Location = new Point(240, 85), Size = new Size(100, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-            txtEmail = new TextBox { Location = new Point(240, 110), Size = new Size(300, 25), Font = new Font("Segoe UI", 10) };
-
-            // Buttons
-            btnAdd = CreateButton("Add Student", new Point(850, 20), Color.FromArgb(46, 204, 113));
-            btnAdd.Click += BtnAdd_Click;
-
-            btnFind = CreateButton("Find by ID", new Point(850, 60), Color.FromArgb(52, 152, 219));
-            btnFind.Click += BtnFind_Click;
-
-            btnUpdate = CreateButton("Update Student", new Point(850, 100), Color.FromArgb(241, 196, 15));
-            btnUpdate.Click += BtnUpdate_Click;
-
-            btnDelete = CreateButton("Delete Student", new Point(1010, 20), Color.FromArgb(231, 76, 60));
-            btnDelete.Click += BtnDelete_Click;
-
-            btnClear = CreateButton("Clear Form", new Point(1010, 60), Color.FromArgb(149, 165, 166));
-            btnClear.Click += (s, e) => ClearForm();
-
-            panelInput.Controls.AddRange(new Control[]
-            {
-                lblID, txtStudentID, lblName, txtStudentName, lblGender, cmbGender,
-                lblDOB, dtpBirthDate, lblPhone, txtPhone, lblEmail, txtEmail,
-                btnAdd, btnFind, btnUpdate, btnDelete, btnClear
-            });
-
-            // DataGridView for displaying students
+            // Grid
             dgvStudents = new DataGridView
             {
-                Location = new Point(20, 340),
-                Size = new Size(1150, 270),
-                BackgroundColor = Color.White,
+                Location = new Point(20, 110),
+                Size = new Size(460, 550),
+                BackgroundColor = ModernTheme.BackColor, // Slightly darker than surface
+                BorderStyle = BorderStyle.None,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 MultiSelect = false,
                 ReadOnly = true,
                 AllowUserToAddRows = false,
-                Font = new Font("Segoe UI", 9)
+                RowHeadersVisible = false,
+                EnableHeadersVisualStyles = false,
+                Font = ModernTheme.BodyFont
             };
-            dgvStudents.CellClick += DgvStudents_CellClick;
+            StyleGrid(dgvStudents);
 
-            // Load All Button
-            btnLoadAll = new Button
+            lblCount = new Label
             {
-                Text = "📋 Load All Students",
-                Location = new Point(20, 300),
-                Size = new Size(200, 30),
-                BackColor = Color.FromArgb(52, 152, 219),
+                Text = "0 Students Found",
+                Location = new Point(20, 680),
+                Size = new Size(460, 20),
+                Font = ModernTheme.SmallFont,
+                ForeColor = ModernTheme.SubTextColor,
+                TextAlign = ContentAlignment.MiddleRight
+            };
+
+            // Loading Bar
+            loadingBar = new ProgressBar
+            {
+                Location = new Point(20, 98),
+                Size = new Size(460, 5),
+                Style = ProgressBarStyle.Marquee,
+                Visible = false
+            };
+
+            pnlLeft.Controls.AddRange(new Control[] { lblSearch, pnlSearchBox, cmbFilterGender, dgvStudents, lblCount, loadingBar });
+
+
+            // --- Right Panel Content (Details) ---
+            lblRightTitle = new Label
+            {
+                Text = "Add New Student",
+                Location = new Point(30, 20),
+                Size = new Size(400, 30),
+                Font = ModernTheme.HeaderFont,
+                ForeColor = ModernTheme.PrimaryColor
+            };
+
+            var lblSubtitle = new Label
+            {
+                Text = "Enter student details below. ID must be unique.",
+                Location = new Point(30, 55),
+                Size = new Size(600, 20),
+                Font = ModernTheme.BodyFont,
+                ForeColor = ModernTheme.SubTextColor
+            };
+
+            // Form Fields Helper
+            int startY = 100;
+            int gapY = 80;
+            
+            // ID
+            pnlRight.Controls.Add(CreateLabel("STUDENT ID", 30, startY));
+            var pnlID = CreateInputPanel(30, startY + 25, 300, out txtStudentID);
+            pnlRight.Controls.Add(pnlID);
+
+            // Name
+            pnlRight.Controls.Add(CreateLabel("FULL NAME", 360, startY));
+            var pnlName = CreateInputPanel(360, startY + 25, 350, out txtStudentName);
+            pnlRight.Controls.Add(pnlName);
+
+            startY += gapY;
+
+            // Gender
+            pnlRight.Controls.Add(CreateLabel("GENDER", 30, startY));
+            cmbGender = new ComboBox
+            {
+                Location = new Point(30, startY + 25),
+                Size = new Size(300, 30),
+                Font = new Font("Segoe UI", 11),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = ModernTheme.InputBackColor,
+                ForeColor = ModernTheme.InputForeColor,
+                FlatStyle = FlatStyle.Flat
+            };
+            cmbGender.Items.AddRange(new object[] { "Male", "Female", "Other" });
+            pnlRight.Controls.Add(cmbGender);
+
+            // DOB
+            pnlRight.Controls.Add(CreateLabel("DATE OF BIRTH", 360, startY));
+            dtpBirthDate = new DateTimePicker
+            {
+                Location = new Point(360, startY + 25),
+                Size = new Size(350, 30),
+                Font = new Font("Segoe UI", 11),
+                CalendarMonthBackground = ModernTheme.InputBackColor,
+                CalendarForeColor = ModernTheme.InputForeColor
+            };
+            pnlRight.Controls.Add(dtpBirthDate);
+
+            startY += gapY;
+
+            // Phone
+            pnlRight.Controls.Add(CreateLabel("PHONE NUMBER", 30, startY));
+            var pnlPhone = CreateInputPanel(30, startY + 25, 300, out txtPhone);
+            pnlRight.Controls.Add(pnlPhone);
+
+            // Email
+            pnlRight.Controls.Add(CreateLabel("COURSE", 360, startY));
+            var pnlCourse = CreateInputPanel(360, startY + 25, 350, out txtCourse);
+            pnlRight.Controls.Add(pnlCourse);
+
+            startY += gapY + 20;
+
+            // Action Buttons
+            btnSave = new ModernButton
+            {
+                Text = "Save Student",
+                Location = new Point(30, startY),
+                Size = new Size(200, 45),
+                BackColor = ModernTheme.PrimaryColor,
                 ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                BorderRadius = 20,
                 Cursor = Cursors.Hand
             };
-            btnLoadAll.Click += BtnLoadAll_Click;
 
-            // Status Label
-            lblStatus = new Label
+            btnClear = new ModernButton
             {
-                Text = "Ready. Total Students: 0",
-                Location = new Point(20, 620),
-                Size = new Size(1150, 25),
+                Text = "New / Clear",
+                Location = new Point(250, startY),
+                Size = new Size(150, 45),
+                BackColor = ModernTheme.InputBackColor,
+                ForeColor = ModernTheme.SubTextColor,
                 Font = new Font("Segoe UI", 10),
-                ForeColor = Color.FromArgb(52, 73, 94)
-            };
-
-            // Add all controls to form
-            this.Controls.AddRange(new Control[]
-            {
-                lblTitle, lblComplexity, panelInput, btnLoadAll, dgvStudents, lblStatus
-            });
-        }
-
-        private Button CreateButton(string text, Point location, Color color)
-        {
-            return new Button
-            {
-                Text = text,
-                Location = location,
-                Size = new Size(140, 35),
-                BackColor = color,
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                BorderRadius = 20,
                 Cursor = Cursors.Hand
             };
-        }
 
-        /// <summary>
-        /// Add Student - O(1) operation
-        /// </summary>
-        private void BtnAdd_Click(object sender, EventArgs e)
-        {
-            if (!ValidateInputs()) return;
-
-            var student = new Student
+            btnDelete = new ModernButton
             {
-                StudentID = int.Parse(txtStudentID.Text),
-                StudentName = txtStudentName.Text,
-                Gender = cmbGender.Text,
-                DateOfBirth = dtpBirthDate.Value,
-                Phone = txtPhone.Text,
-                Email = txtEmail.Text
+                Text = "Delete Student",
+                Location = new Point(560, startY),
+                Size = new Size(150, 45),
+                BackColor = ModernTheme.ErrorColor,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                BorderRadius = 20,
+                Cursor = Cursors.Hand,
+                Visible = false // Hidden by default
             };
 
-            // O(1) insertion into hash table!
-            bool success = _studentManager.AddStudent(student);
+            pnlRight.Controls.AddRange(new Control[] { lblRightTitle, lblSubtitle, btnSave, btnClear, btnDelete });
 
-            if (success)
-            {
-                MessageBox.Show(
-                    "Student added successfully!",
-                    "Success",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-
-                UpdateStatus();
-                ClearForm();
-            }
-            else
-            {
-                MessageBox.Show("Student ID already exists!",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            // Add Panels to Form
+            this.Controls.Add(pnlLeft);
+            this.Controls.Add(pnlRight);
         }
 
-        /// <summary>
-        /// Find Student by ID - O(1) operation (KEY DEMO!)
-        /// This is THE most important feature for your exam!
-        /// </summary>
-        private void BtnFind_Click(object sender, EventArgs e)
+        private void SetupTitleBar()
         {
-            if (string.IsNullOrWhiteSpace(txtStudentID.Text))
+            pnlTitleBar = new Panel
             {
-                MessageBox.Show("Please enter Student ID to search.", "Validation",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            int studentId = int.Parse(txtStudentID.Text);
-
-            // O(1) hash table lookup - instant retrieval!
-            var student = _studentManager.FindStudentById(studentId);
-
-            if (student != null)
-            {
-                // Populate form with found student
-                txtStudentName.Text = student.StudentName;
-                cmbGender.Text = student.Gender;
-                dtpBirthDate.Value = student.DateOfBirth ?? DateTime.Now;
-                txtPhone.Text = student.Phone;
-                txtEmail.Text = student.Email;
-
-                MessageBox.Show(
-                    $"Student found!\n\n" +
-                    $"Name: {student.StudentName}\n" +
-                    $"ID: {student.StudentID}",
-                    "Student Found",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
-            else
-            {
-                MessageBox.Show("Student not found!",
-                    "Not Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-        }
-
-        /// <summary>
-        /// Update Student - O(1) operation
-        /// </summary>
-        private void BtnUpdate_Click(object sender, EventArgs e)
-        {
-            if (!ValidateInputs()) return;
-
-            var student = new Student
-            {
-                StudentID = int.Parse(txtStudentID.Text),
-                StudentName = txtStudentName.Text,
-                Gender = cmbGender.Text,
-                DateOfBirth = dtpBirthDate.Value,
-                Phone = txtPhone.Text,
-                Email = txtEmail.Text
+                Dock = DockStyle.Top,
+                Height = 30,
+                BackColor = ModernTheme.SurfaceColor
             };
+            pnlTitleBar.MouseDown += (s, e) => { dragging = true; dragCursorPoint = Cursor.Position; dragFormPoint = this.Location; };
+            pnlTitleBar.MouseMove += (s, e) => { if (dragging) { Point dif = Point.Subtract(Cursor.Position, new Size(dragCursorPoint)); this.Location = Point.Add(dragFormPoint, new Size(dif)); } };
+            pnlTitleBar.MouseUp += (s, e) => dragging = false;
 
-            // O(1) update in hash table!
-            bool success = _studentManager.UpdateStudent(student);
+            var btnClose = new Button
+            {
+                Text = "✕",
+                Dock = DockStyle.Right,
+                Width = 40,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = ModernTheme.TextColor,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+            btnClose.FlatAppearance.BorderSize = 0;
+            btnClose.FlatAppearance.MouseOverBackColor = ModernTheme.ErrorColor;
+            btnClose.Click += (s, e) => this.Close();
 
-            if (success)
+            var btnMin = new Button
             {
-                MessageBox.Show("Student updated successfully!",
-                    "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                UpdateStatus();
-                ClearForm();
-            }
-            else
-            {
-                MessageBox.Show("Student not found!", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+                Text = "—",
+                Dock = DockStyle.Right,
+                Width = 40,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = ModernTheme.TextColor,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+            btnMin.FlatAppearance.BorderSize = 0;
+            btnMin.FlatAppearance.MouseOverBackColor = ModernTheme.SurfaceColor;
+            btnMin.Click += (s, e) => this.WindowState = FormWindowState.Minimized;
+
+            var lblTitle = new Label { Text = "  Student Management System", Dock = DockStyle.Left, AutoSize = true, TextAlign = ContentAlignment.MiddleLeft, ForeColor = ModernTheme.SubTextColor, Font = new Font("Segoe UI", 9) };
+            
+            pnlTitleBar.Controls.Add(lblTitle);
+            pnlTitleBar.Controls.Add(btnMin);
+            pnlTitleBar.Controls.Add(btnClose);
+            this.Controls.Add(pnlTitleBar);
         }
 
-        /// <summary>
-        /// Delete Student - O(1) operation
-        /// </summary>
-        private void BtnDelete_Click(object sender, EventArgs e)
+        private void SetupEvents()
         {
-            if (string.IsNullOrWhiteSpace(txtStudentID.Text))
+            // Search Logic
+            txtSearch.TextChanged += async (s, e) => await PerformSearch();
+            cmbFilterGender.SelectedIndexChanged += async (s, e) => await PerformSearch();
+
+            // Grid Selection
+            dgvStudents.SelectionChanged += (s, e) =>
             {
-                MessageBox.Show("Please enter Student ID to delete.", "Validation",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var result = MessageBox.Show(
-                "Are you sure you want to delete this student?",
-                "Confirm Delete",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
-            {
-                int studentId = int.Parse(txtStudentID.Text);
-
-                // O(1) deletion from hash table!
-                bool success = _studentManager.DeleteStudent(studentId);
-
-                if (success)
+                if (dgvStudents.SelectedRows.Count > 0)
                 {
-                    MessageBox.Show("Student deleted successfully!",
-                        "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    UpdateStatus();
-                    ClearForm();
+                    var student = (Student)dgvStudents.SelectedRows[0].DataBoundItem;
+                    PopulateForm(student);
+                }
+            };
+
+            // Buttons
+            btnSave.Click += BtnSave_Click;
+            btnClear.Click += (s, e) => ClearForm();
+            btnDelete.Click += BtnDelete_Click;
+        }
+
+        private async System.Threading.Tasks.Task PerformSearch()
+        {
+            loadingBar.Visible = true;
+            
+            // Simulate network/db latency for better UX feel
+            await System.Threading.Tasks.Task.Delay(300);
+
+            string query = txtSearch.Text.Trim();
+            string genderFilter = cmbFilterGender.SelectedItem?.ToString();
+            
+            List<Student> results;
+
+            // 1. Filter by Text (Name or ID)
+            if (string.IsNullOrEmpty(query))
+            {
+                 results = _studentManager.GetAllStudents();
+            }
+            else
+            {
+                // Optimization: Check if it's an ID (O(1)) or Name (O(n))
+                if (int.TryParse(query, out int id))
+                {
+                    var student = _studentManager.FindStudentById(id);
+                    results = student != null ? new List<Student> { student } : new List<Student>();
                 }
                 else
                 {
-                    MessageBox.Show("Student not found!", "Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    results = _studentManager.SearchStudentsByName(query);
+                }
+            }
+
+            // 2. Filter by Gender (in-memory filtering just for UI)
+            if (!string.IsNullOrEmpty(genderFilter) && genderFilter != "All Genders")
+            {
+                results = results.FindAll(s => s.Gender != null && s.Gender.Equals(genderFilter, StringComparison.OrdinalIgnoreCase));
+            }
+
+            BindGrid(results);
+            loadingBar.Visible = false;
+        }
+
+        private void BindGrid(List<Student> students)
+        {
+            dgvStudents.DataSource = null;
+            dgvStudents.DataSource = students;
+            
+            // Hide some columns for cleaner list view if needed
+            if(dgvStudents.Columns["DateOfBirth"] != null) dgvStudents.Columns["DateOfBirth"].Visible = false;
+            if(dgvStudents.Columns["Phone"] != null) dgvStudents.Columns["Phone"].Visible = false;
+            
+            lblCount.Text = $"{students.Count} Students Found";
+        }
+
+        private async void BtnSave_Click(object sender, EventArgs e)
+        {
+            if (!ValidateInputs()) return;
+
+            var student = new Student
+            {
+                StudentID = int.Parse(txtStudentID.Text),
+                StudentName = txtStudentName.Text,
+                Gender = cmbGender.Text,
+                DateOfBirth = dtpBirthDate.Value,
+                Phone = txtPhone.Text,
+                Course = txtCourse.Text
+            };
+
+            if (_studentManager.StudentExists(student.StudentID))
+            {
+                // Update
+                // If we are in "Edit Mode" (meaning we selected a row), and the ID matches, we update.
+                // If user Changed ID to an existing one, that's technically an update on that legitimate ID.
+                
+                _studentManager.UpdateStudent(student);
+                ToastForm.Show("Student updated successfully", ToastForm.ToastType.Success);
+            }
+            else
+            {
+                // Insert
+                _studentManager.AddStudent(student);
+                ToastForm.Show("Student added successfully", ToastForm.ToastType.Success);
+            }
+
+            await PerformSearch(); // Refresh grid
+            ClearForm();
+        }
+
+        private async void BtnDelete_Click(object sender, EventArgs e)
+        {
+            if(int.TryParse(txtStudentID.Text, out int id))
+            {
+                var confirmResult = MessageBox.Show(
+                    $"Delete {txtStudentName.Text} (ID {id})?", 
+                    "Confirm Delete", 
+                    MessageBoxButtons.YesNo, 
+                    MessageBoxIcon.Warning);
+
+                if (confirmResult == DialogResult.Yes)
+                {
+                    _studentManager.DeleteStudent(id);
+                    ToastForm.Show("Student deleted successfully", ToastForm.ToastType.Success);
+                    await PerformSearch();
+                    ClearForm();
                 }
             }
         }
 
-        /// <summary>
-        /// Load all students into DataGridView - O(n)
-        /// </summary>
-        private void BtnLoadAll_Click(object sender, EventArgs e)
+        private void PopulateForm(Student s)
         {
-            var students = _studentManager.GetAllStudents();
+            txtStudentID.Text = s.StudentID.ToString();
+            txtStudentID.Enabled = false; // Cannot change ID during edit to prevent key issues for now
+            txtStudentName.Text = s.StudentName;
+            cmbGender.Text = s.Gender;
+            dtpBirthDate.Value = s.DateOfBirth ?? DateTime.Now;
+            txtPhone.Text = s.Phone;
+            txtCourse.Text = s.Course;
 
-            dgvStudents.DataSource = null;
-            dgvStudents.DataSource = students;
-            UpdateStatus();
-        }
-
-        private void DgvStudents_CellClick(object sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex >= 0)
-            {
-                var row = dgvStudents.Rows[e.RowIndex];
-                txtStudentID.Text = row.Cells["StudentID"].Value?.ToString();
-                txtStudentName.Text = row.Cells["StudentName"].Value?.ToString();
-                cmbGender.Text = row.Cells["Gender"].Value?.ToString();
-                txtPhone.Text = row.Cells["Phone"].Value?.ToString();
-                txtEmail.Text = row.Cells["Email"].Value?.ToString();
-
-                if (row.Cells["DateOfBirth"].Value != null)
-                    dtpBirthDate.Value = Convert.ToDateTime(row.Cells["DateOfBirth"].Value);
-            }
-        }
-
-        private bool ValidateInputs()
-        {
-            if (string.IsNullOrWhiteSpace(txtStudentID.Text) ||
-                string.IsNullOrWhiteSpace(txtStudentName.Text))
-            {
-                MessageBox.Show("Student ID and Name are required!", "Validation",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
-            if (!int.TryParse(txtStudentID.Text, out _))
-            {
-                MessageBox.Show("Student ID must be a number!", "Validation",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
-            return true;
+            lblRightTitle.Text = "Edit Student";
+            btnSave.Text = "Update Changes";
+            btnDelete.Visible = true;
         }
 
         private void ClearForm()
         {
+            txtStudentID.Enabled = true;
             txtStudentID.Clear();
             txtStudentName.Clear();
             cmbGender.SelectedIndex = -1;
             txtPhone.Clear();
-            txtEmail.Clear();
+            txtCourse.Clear();
             dtpBirthDate.Value = DateTime.Now;
-            txtStudentID.Focus();
+
+            lblRightTitle.Text = "Add New Student";
+            btnSave.Text = "Save Student";
+            btnDelete.Visible = false;
+            
+            // Clear selection
+            dgvStudents.ClearSelection();
         }
 
-        private void UpdateStatus()
+        // Helpers
+        private Label CreateLabel(string text, int x, int y)
         {
-            int count = _studentManager.GetStudentCount();
-            lblStatus.Text = $"Total Students: {count}";
-        }
-
-        /// <summary>
-        /// Load sample data for demonstration
-        /// </summary>
-        private void LoadSampleData()
-        {
-            var sampleStudents = new List<Student>
+            return new Label
             {
-                new Student { StudentID = 1, StudentName = "Sok Pisey", Gender = "Female", DateOfBirth = new DateTime(2000, 5, 15), Phone = "012345678", Email = "pisey@email.com" },
-                new Student { StudentID = 2, StudentName = "Chan Dara", Gender = "Male", DateOfBirth = new DateTime(1999, 8, 20), Phone = "012345679", Email = "dara@email.com" },
-                new Student { StudentID = 3, StudentName = "Meng Sreynit", Gender = "Female", DateOfBirth = new DateTime(2001, 3, 10), Phone = "012345680", Email = "sreynit@email.com" },
-                new Student { StudentID = 4, StudentName = "Vann Sokha", Gender = "Male", DateOfBirth = new DateTime(2000, 11, 25), Phone = "012345681", Email = "sokha@email.com" },
-                new Student { StudentID = 5, StudentName = "Keo Malina", Gender = "Female", DateOfBirth = new DateTime(1999, 12, 5), Phone = "012345682", Email = "malina@email.com" }
+                Text = text,
+                Location = new Point(x, y),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = ModernTheme.SubTextColor
             };
+        }
 
-            _studentManager.LoadStudentsIntoHashTable(sampleStudents);
-            UpdateStatus();
+        private Panel CreateInputPanel(int x, int y, int width, out TextBox textBox)
+        {
+            var pnl = new Panel { Location = new Point(x, y), Size = new Size(width, 35), BackColor = ModernTheme.InputBackColor };
+            textBox = new TextBox
+            {
+                Location = new Point(10, 8),
+                Size = new Size(width - 20, 20),
+                Font = new Font("Segoe UI", 10),
+                BackColor = ModernTheme.InputBackColor,
+                ForeColor = ModernTheme.InputForeColor,
+                BorderStyle = BorderStyle.None
+            };
+            pnl.Controls.Add(textBox);
+            
+            // Focus effect
+            textBox.Enter += (s, e) => pnl.BackColor = Color.FromArgb(60, 60, 60);
+            textBox.Leave += (s, e) => pnl.BackColor = ModernTheme.InputBackColor;
+            
+            return pnl;
+        }
+
+        private void StyleGrid(DataGridView dgv)
+        {
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = ModernTheme.InputBackColor;
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = ModernTheme.SubTextColor;
+            dgv.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            dgv.ColumnHeadersDefaultCellStyle.Padding = new Padding(10, 0, 0, 0);
+            dgv.ColumnHeadersHeight = 35;
+
+            dgv.DefaultCellStyle.BackColor = ModernTheme.SurfaceColor;
+            dgv.DefaultCellStyle.ForeColor = ModernTheme.TextColor;
+            dgv.DefaultCellStyle.SelectionBackColor = ModernTheme.PrimaryColor;
+            dgv.DefaultCellStyle.SelectionForeColor = Color.White;
+            dgv.DefaultCellStyle.Padding = new Padding(10, 0, 0, 0);
+            dgv.GridColor = ModernTheme.InputBackColor;
+            
+            dgv.RowTemplate.Height = 35;
+        }
+
+        private bool ValidateInputs()
+        {
+            if (string.IsNullOrWhiteSpace(txtStudentID.Text) || string.IsNullOrWhiteSpace(txtStudentName.Text))
+            {
+                MessageBox.Show("ID and Name are required.", "Error");
+                return false;
+            }
+            if (!int.TryParse(txtStudentID.Text, out _))
+            {
+                MessageBox.Show("ID must be a number.", "Error");
+                return false;
+            }
+            return true;
+        }
+
+
+        
+        protected override void OnLoad(EventArgs e)
+        {
+             base.OnLoad(e);
+              _ = PerformSearch(); // Initial Grid Bind
         }
     }
 }
