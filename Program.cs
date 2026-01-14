@@ -9,11 +9,7 @@ namespace StudentManagementSystem
 {
     static class Program
     {
-        /// <summary>
-        /// Main entry point for the Windows Forms application
-        /// Demonstrates Custom Hash Table implementation for O(1) operations
-        /// Built for Data Structures Final Exam
-        /// </summary>
+
         [STAThread]
         static void Main()
         {
@@ -32,10 +28,7 @@ namespace StudentManagementSystem
             Application.Run(new LoginForm(authService));
         }
 
-        /// <summary>
-        /// Load sample admin accounts for testing
-        /// This demonstrates loading data into hash table for O(1) access
-        /// </summary>
+
         private static void LoadSampleAdmins(AuthenticationService authService)
         {
             // Register default admin accounts

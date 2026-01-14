@@ -7,10 +7,7 @@ using StudentManagementSystem.Data;
 
 namespace StudentManagementSystem.Services
 {
-    /// <summary>
-    /// Student Manager using Custom Hash Table AND SQL Database
-    /// DEMONSTRATES: Hybrid approach - Persistent Storage (SQL) + Fast In-Memory Access (HashTable)
-    /// </summary>
+
     public class StudentManager
     {
         // Hash Table for O(1) lookup
@@ -25,10 +22,7 @@ namespace StudentManagementSystem.Services
             _context = new ApplicationDbContext();
         }
 
-        /// <summary>
-        /// Loads all students from SQL Database into the Hash Table.
-        /// This ensures the application starts with real data.
-        /// </summary>
+
         public void LoadFromDatabase()
         {
             try
@@ -53,9 +47,30 @@ namespace StudentManagementSystem.Services
             }
         }
 
-        /// <summary>
-        /// Add a new student to both Database and Hash Table
-        /// </summary>
+        public async System.Threading.Tasks.Task LoadFromDatabaseAsync()
+        {
+            try
+            {
+                // Fetch from DB using EF Core async
+                var studentsFromDb = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(_context.Students);
+                
+                // Clear existing hash table
+                _studentHashTable.Clear();
+
+                // Populate Hash Table
+                foreach (var student in studentsFromDb)
+                {
+                    _studentHashTable.Insert(student.StudentID, student);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error connecting to database: {ex.Message}");
+                throw new Exception($"Database Connection Failed: {ex.Message}", ex);
+            }
+        }
+
+
         public bool AddStudent(Student student)
         {
             try
@@ -80,9 +95,7 @@ namespace StudentManagementSystem.Services
             }
         }
 
-        /// <summary>
-        /// Update student in both Database and Hash Table
-        /// </summary>
+
         public bool UpdateStudent(Student student)
         {
             try
@@ -117,9 +130,7 @@ namespace StudentManagementSystem.Services
             }
         }
 
-        /// <summary>
-        /// Delete student from both Database and Hash Table
-        /// </summary>
+
         public bool DeleteStudent(int studentId)
         {
             try
@@ -141,9 +152,7 @@ namespace StudentManagementSystem.Services
             }
         }
 
-        /// <summary>
-        /// Find student by ID (Uses Hash Table/Cache for O(1) Speed)
-        /// </summary>
+
         public Student FindStudentById(int studentId)
         {
             try
@@ -156,17 +165,13 @@ namespace StudentManagementSystem.Services
             }
         }
 
-        /// <summary>
-        /// Get all students from the Hash Table
-        /// </summary>
+
         public List<Student> GetAllStudents()
         {
             return _studentHashTable.GetAllValues();
         }
 
-        /// <summary>
-        /// Check if student exists
-        /// </summary>
+
         public bool StudentExists(int studentId)
         {
             return _studentHashTable.ContainsKey(studentId);
@@ -185,6 +190,19 @@ namespace StudentManagementSystem.Services
                 }
             }
             return results;
+        }
+
+        public bool IsPhoneNumberUsed(string phoneNumber, int excludeStudentId)
+        {
+            var allStudents = _studentHashTable.GetAllValues();
+            foreach (var student in allStudents)
+            {
+                if (student.Phone == phoneNumber && student.StudentID != excludeStudentId)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public int GetStudentCount()

@@ -2,16 +2,6 @@
 -- RUN THIS IN SQL SERVER MANAGEMENT STUDIO (SSMS)
 -- This will create a fresh database 'CleanStudentDB' with the correct schema and sample data.
 
-USE master;
-GO
-
--- 1. Create Database (Drop if exists to ensure clean state)
-IF EXISTS (SELECT * FROM sys.databases WHERE name = 'CleanStudentDB')
-BEGIN
-    ALTER DATABASE CleanStudentDB SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    DROP DATABASE CleanStudentDB;
-END
-GO
 
 CREATE DATABASE CleanStudentDB;
 GO

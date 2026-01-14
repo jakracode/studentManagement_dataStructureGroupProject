@@ -49,12 +49,8 @@ namespace StudentManagementSystem.Forms
             _studentManager = new StudentManager();
             InitializeComponents();
             
-            // Load real data from SQL Database
-            try {
-                _studentManager.LoadFromDatabase();
-            } catch (Exception ex) {
-                MessageBox.Show("Failed to load database: " + ex.Message);
-            }
+            // Load from database is now done in OnLoad async to prevent UI freeze
+            // _studentManager.LoadFromDatabase();
             
             SetupEvents();
         }
@@ -223,6 +219,7 @@ namespace StudentManagementSystem.Forms
                 Font = new Font("Segoe UI", 11),
                 CalendarMonthBackground = ModernTheme.InputBackColor,
                 CalendarForeColor = ModernTheme.InputForeColor
+                // MaxDate = DateTime.Now // Removed to prevent crash when loading invalid legacy data (e.g. Year 3009)
             };
             pnlRight.Controls.Add(dtpBirthDate);
 
@@ -358,54 +355,66 @@ namespace StudentManagementSystem.Forms
         private async System.Threading.Tasks.Task PerformSearch()
         {
             loadingBar.Visible = true;
-            
-            // Simulate network/db latency for better UX feel
-            await System.Threading.Tasks.Task.Delay(300);
-
-            string query = txtSearch.Text.Trim();
-            string genderFilter = cmbFilterGender.SelectedItem?.ToString();
-            
-            List<Student> results;
-
-            // 1. Filter by Text (Name or ID)
-            if (string.IsNullOrEmpty(query))
+            try
             {
-                 results = _studentManager.GetAllStudents();
-            }
-            else
-            {
-                // Optimization: Check if it's an ID (O(1)) or Name (O(n))
-                if (int.TryParse(query, out int id))
+                string query = txtSearch.Text.Trim();
+                string genderFilter = cmbFilterGender.SelectedItem?.ToString();
+                
+                List<Student> results;
+
+                // 1. Filter by Text (Name or ID)
+                if (string.IsNullOrEmpty(query))
                 {
-                    var student = _studentManager.FindStudentById(id);
-                    results = student != null ? new List<Student> { student } : new List<Student>();
+                     results = _studentManager.GetAllStudents();
                 }
                 else
                 {
-                    results = _studentManager.SearchStudentsByName(query);
+                    if (int.TryParse(query, out int id))
+                    {
+                        var student = _studentManager.FindStudentById(id);
+                        results = student != null ? new List<Student> { student } : new List<Student>();
+                    }
+                    else
+                    {
+                        results = _studentManager.SearchStudentsByName(query);
+                    }
                 }
-            }
 
-            // 2. Filter by Gender (in-memory filtering just for UI)
-            if (!string.IsNullOrEmpty(genderFilter) && genderFilter != "All Genders")
+                // 2. Filter by Gender
+                if (!string.IsNullOrEmpty(genderFilter) && genderFilter != "All Genders")
+                {
+                    results = results.FindAll(s => s.Gender != null && s.Gender.Equals(genderFilter, StringComparison.OrdinalIgnoreCase));
+                }
+
+                BindGrid(results);
+            }
+            catch (Exception ex)
             {
-                results = results.FindAll(s => s.Gender != null && s.Gender.Equals(genderFilter, StringComparison.OrdinalIgnoreCase));
+                MessageBox.Show($"Search Error: {ex.Message}");
             }
-
-            BindGrid(results);
-            loadingBar.Visible = false;
+            finally
+            {
+                loadingBar.Visible = false;
+            }
         }
 
         private void BindGrid(List<Student> students)
         {
-            dgvStudents.DataSource = null;
-            dgvStudents.DataSource = students;
-            
-            // Hide some columns for cleaner list view if needed
-            if(dgvStudents.Columns["DateOfBirth"] != null) dgvStudents.Columns["DateOfBirth"].Visible = false;
-            if(dgvStudents.Columns["Phone"] != null) dgvStudents.Columns["Phone"].Visible = false;
-            
-            lblCount.Text = $"{students.Count} Students Found";
+            try
+            {
+                dgvStudents.DataSource = null;
+                dgvStudents.DataSource = students;
+                
+                // Hide columns - Check existence safely
+                if (dgvStudents.Columns.Contains("DateOfBirth")) dgvStudents.Columns["DateOfBirth"].Visible = false;
+                if (dgvStudents.Columns.Contains("Phone")) dgvStudents.Columns["Phone"].Visible = false;
+                
+                lblCount.Text = $"{students.Count} Students Found";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Grid Binding Error: {ex.Message}");
+            }
         }
 
         private async void BtnSave_Click(object sender, EventArgs e)
@@ -554,20 +563,60 @@ namespace StudentManagementSystem.Forms
                 MessageBox.Show("ID and Name are required.", "Error");
                 return false;
             }
-            if (!int.TryParse(txtStudentID.Text, out _))
+            if (!int.TryParse(txtStudentID.Text, out int id))
             {
                 MessageBox.Show("ID must be a number.", "Error");
                 return false;
             }
+
+            // 1. Validate Date of Birth
+            if (dtpBirthDate.Value.Date > DateTime.Now.Date)
+            {
+                 MessageBox.Show("Date of Birth cannot be in the future.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                 return false;
+            }
+            if (dtpBirthDate.Value.Year < 1900)
+            {
+                 MessageBox.Show("Date of Birth is too old. Please enter a year after 1900.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                 return false;
+            }
+
+            // 2. Validate Phone Number Uniqueness
+            // We check if the phone number is used by ANY OTHER student (excluding the current ID)
+            if (!string.IsNullOrWhiteSpace(txtPhone.Text))
+            {
+                if (_studentManager.IsPhoneNumberUsed(txtPhone.Text, id))
+                {
+                    MessageBox.Show("This phone number is already associated with another student.\nPhone numbers must be unique.", 
+                        "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+            }
+
             return true;
         }
 
 
         
-        protected override void OnLoad(EventArgs e)
+        protected override async void OnLoad(EventArgs e)
         {
              base.OnLoad(e);
-              _ = PerformSearch(); // Initial Grid Bind
+             
+             loadingBar.Visible = true;
+             try 
+             {
+                 await _studentManager.LoadFromDatabaseAsync();
+                 int count = _studentManager.GetStudentCount();
+                 // Debug Info
+                 // MessageBox.Show($"Successfully connected to DB.\nLoaded {count} students.", "Debug Info");
+             } 
+             catch (Exception ex) 
+             {
+                 MessageBox.Show("Failed to load database: " + ex.Message);
+             }
+             
+             await PerformSearch(); // Initial Grid Bind
+             loadingBar.Visible = false;
         }
     }
 }
